@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createExtensionZip } from './zip.ts';
+import { INITIAL_LEADS } from '../mockData.ts';
 
 const sourceDir = resolve('extension/src');
 
@@ -48,6 +49,36 @@ test('content script never uses innerHTML for lead or model data', () => {
   // Reply insertion must report success/failure rather than failing silently.
   assert.ok(content.includes('return false;'), 'insertReply must report a failed insert');
   assert.ok(content.includes('was NOT inserted'), 'a failed insert must be surfaced to the user');
+});
+
+test('seeded demo leads are unmistakably fake, not realistic customer records', () => {
+  // A viewer must never mistake a seeded row for a genuine enquiry. These fixtures
+  // deliberately use invented names, reserved example.com emails, Ofcom drama
+  // phone numbers and non-geographic postcodes.
+  for (const lead of INITIAL_LEADS) {
+    assert.ok(/demo|sample/i.test(lead.customerName), `name must be marked as a sample: ${lead.customerName}`);
+    assert.ok(
+      lead.email.endsWith('@example.com'),
+      `email must use the reserved example.com domain, got ${lead.email}`
+    );
+    // 07700 900xxx is the Ofcom range reserved for drama/fiction.
+    assert.ok(lead.phone.startsWith('07700 900'), `phone must be a reserved drama number, got ${lead.phone}`);
+    // AA/BB are not valid UK postcode outward codes for a real address.
+    assert.ok(/^[A-Z]{2}\d/i.test(lead.postcode), `postcode must be an obvious placeholder, got ${lead.postcode}`);
+    assert.ok(
+      lead.messageText.toUpperCase().includes('DEMO LEAD'),
+      'the message body must state that it is a demo record'
+    );
+  }
+});
+
+test('the simulator view labels itself as demo data', () => {
+  const simulator = readFileSync(resolve('src/components/CheckatradeSimulator.tsx'), 'utf8');
+  assert.ok(simulator.includes('Demo data only.'), 'the inbox must carry a visible demo notice');
+  assert.ok(
+    simulator.includes('not a live Checkatrade connection'),
+    'the notice must state there is no live Checkatrade connection'
+  );
 });
 
 test('ZIP writer emits local, central, and end records for every file', () => {

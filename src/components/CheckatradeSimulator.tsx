@@ -265,6 +265,18 @@ export const CheckatradeSimulator: React.FC<CheckatradeSimulatorProps> = ({
           </button>
         </div>
 
+        {/* Unmistakable demo notice. The list below is seeded sample data, not a live
+            Checkatrade connection, and a viewer must never read it as real enquiries. */}
+        <div className="flex items-start gap-2.5 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 text-[11px] text-amber-200">
+          <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-amber-400" />
+          <p className="leading-relaxed">
+            <strong className="font-semibold">Demo data only.</strong> This inbox is a preview of
+            the browser extension, not a live Checkatrade connection — the sample leads below are
+            invented and no real messages are stored or sent. Real leads arrive through the
+            installed extension on your own Checkatrade account.
+          </p>
+        </div>
+
         {/* Main Checkatrade Portal Content */}
         <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[700px] bg-slate-950">
           {/* Left Column: Checkatrade Inbox Leads List (4 cols) */}
