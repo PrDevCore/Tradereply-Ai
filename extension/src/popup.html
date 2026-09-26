@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width: 340px; margin: 0; padding: 16px; font-family: sans-serif; background: #090d16; color: #e2e8f0; }
+    h2 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; gap: 6px; color: #38bdf8; }
+    label { font-size: 12px; font-weight: bold; color: #94a3b8; display: block; margin-top: 8px; }
+    textarea, select { width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px; border-radius: 6px; font-size: 12px; }
+    button { width: 100%; margin-top: 12px; background: #0284c7; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #0369a1; }
+    .status { margin-top: 8px; font-size: 11px; color: #10b981; text-align: center; }
+  </style>
+</head>
+<body>
+  <h2><span>⚡</span> TradeReply AI</h2>
+  <label>Active Tone</label>
+  <select id="tone">
+    <option value="professional_polished">Professional & Polished</option>
+    <option value="friendly_approachable">Friendly & Approachable</option>
+    <option value="urgent_fasttrack">Emergency / Fast Dispatch</option>
+    <option value="direct_pricing">Direct Pricing & Terms</option>
+  </select>
+
+  <label>Customer Message</label>
+  <textarea id="msg" rows="4" placeholder="Paste or let extension auto-detect on Checkatrade..."></textarea>
+
+  <button id="draft-btn">Generate Personalized Reply</button>
+  <div id="status" class="status">Connected to TradeReply AI Hub</div>
+  <script src="popup.js"></script>
+</body>
+</html>

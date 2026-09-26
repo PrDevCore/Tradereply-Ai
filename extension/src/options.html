@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TradeReply AI - Extension Settings</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f1f5f9; padding: 32px; max-width: 600px; margin: auto; }
+    h1 { color: #38bdf8; font-size: 20px; }
+    .card { background: #1e293b; padding: 20px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 20px; }
+    label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; color: #94a3b8; }
+    input, textarea { width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #475569; color: #fff; padding: 8px; border-radius: 6px; }
+    button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>⚡ TradeReply AI Options & Profile</h1>
+  <div class="card">
+    <label>Company Trading Name</label>
+    <input id="company" placeholder="Your real business name" />
+    <label>Trade Type</label>
+    <input id="tradeType" placeholder="e.g. Heating, Plumbing &amp; Electrical" />
+    <label>Contact Person / Engineer Name</label>
+    <input id="contactPerson" placeholder="e.g. James Carter" />
+    <label>Business Phone</label>
+    <input id="phone" placeholder="e.g. 07700 900382" />
+    <label>Business Email</label>
+    <input id="email" placeholder="e.g. enquiries@yourbusiness.co.uk" />
+    <label>Website</label>
+    <input id="website" placeholder="e.g. www.yourbusiness.co.uk" />
+    <label>Years in Business</label>
+    <input id="years" placeholder="e.g. 14" />
+    <label>Checkatrade Rating (out of 10)</label>
+    <input id="score" placeholder="e.g. 9.94" />
+    <label>Number of Checkatrade Reviews</label>
+    <input id="reviews" placeholder="e.g. 186" />
+    <label>Emergency Callout Rate</label>
+    <input id="callout" placeholder="e.g. £75 + VAT (covers 1st hr diagnostics)" />
+    <label>Standard Hourly Rate</label>
+    <input id="hourlyRate" placeholder="e.g. £65/hr" />
+    <label>Travel Radius</label>
+    <input id="travelRadius" placeholder="e.g. 25 miles of Guildford &amp; Surrey" />
+    <label>Workmanship Guarantee</label>
+    <input id="guarantee" placeholder="e.g. 12-month full workmanship guarantee" />
+    <label>Available Timeslots</label>
+    <input id="timeslots" placeholder="e.g. Today 2:30pm - 5:00pm, or tomorrow morning" />
+    <label>Accreditations / Badges</label>
+    <input id="accreditation" placeholder="e.g. Gas Safe Registered (#594821) &amp; NICEIC Approved" />
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:15px;color:#38bdf8;margin-top:0;">Reply Style</h2>
+    <label>Default Reply Tone</label>
+    <select id="tone">
+      <option value="professional_polished">Professional &amp; Polished</option>
+      <option value="friendly_approachable">Friendly &amp; Approachable</option>
+      <option value="urgent_fasttrack">Emergency / Fast Dispatch</option>
+      <option value="direct_pricing">Direct Pricing &amp; Terms</option>
+      <option value="consultative_expert">Consultative Diagnostic</option>
+    </select>
+    <label>Reply Length</label>
+    <select id="replyLength">
+      <option value="concise">Concise (50-80 words)</option>
+      <option value="standard">Standard (100-140 words)</option>
+      <option value="detailed">Detailed (150-200 words)</option>
+    </select>
+    <label>Call to Action</label>
+    <select id="cta">
+      <option value="site_visit">Offer a site visit / survey</option>
+      <option value="call_me">Ask them to call me</option>
+      <option value="send_photos">Ask for photos first</option>
+      <option value="instant_booking">Offer instant booking</option>
+    </select>
+    <label>Formality Level (1 = very casual, 5 = highly formal)</label>
+    <input id="formality" type="number" min="1" max="5" step="1" placeholder="3" />
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+      <input id="badge" type="checkbox" style="width:auto;" /> Mention my Checkatrade score &amp; badges
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+      <input id="signOff" type="checkbox" style="width:auto;" /> Sign off with my name and company
+    </label>
+    <label>Custom Trade Rules (sent with every request)</label>
+    <textarea id="customRules" rows="3" placeholder="e.g. Never quote a fixed price for leak tracing without a survey."></textarea>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:15px;color:#38bdf8;margin-top:0;">Connection</h2>
+    <label>Backend API Base URL (must be HTTPS for any non-local host)</label>
+    <input id="api" value="__TRADEREPLY_API_ORIGIN__" />
+    <label>Shared API Token (only if the server sets TRADEREPLY_API_TOKEN)</label>
+    <input id="apiToken" placeholder="Paste the same value as the server's TRADEREPLY_API_TOKEN" />
+    <p style="font-size:12px;color:#94a3b8;line-height:1.5;">
+      Every request is sent from this extension's service worker, never from the page, so the
+      API does not need permissive CORS headers. Changing the base URL also means adding that host
+      to <code>host_permissions</code> in manifest.json.
+    </p>
+  </div>
+  <button id="tr-save-btn">Save Configuration</button>
+  <p id="tr-save-status" style="font-size:12px;color:#4ade80;min-height:18px;"></p>
+  <script src="options.js"></script>
+</body>
+</html>

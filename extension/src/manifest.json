@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "TradeReply AI - Checkatrade Auto-Reply",
+  "version": "1.2.0",
+  "description": "Instant lead analysis and personalized, professional auto-reply generator for Checkatrade, MyBuilder, and trade directories.",
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.checkatrade.com/*",
+    "*://trades.checkatrade.com/*",
+    "*://*.mybuilder.com/*",
+    "*://*.ratedpeople.com/*",
+    "__TRADEREPLY_API_ORIGIN__/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TradeReply AI Assistant"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "minimum_chrome_version": "88",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.checkatrade.com/*",
+        "*://trades.checkatrade.com/*",
+        "*://*.mybuilder.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}

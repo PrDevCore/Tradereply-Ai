@@ -1,0 +1,73 @@
+/* TradeReply AI Injected Styles */
+#tradereply-floating-widget {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  border: 1px solid #1e293b;
+}
+.tr-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tr-logo { font-size: 16px; }
+.tr-title { font-weight: 700; font-size: 13px; color: #38bdf8; }
+#tr-tone-select {
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.tr-primary-btn {
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.tr-primary-btn:hover { background: #0369a1; }
+.tr-secondary-btn {
+  background: #334155;
+  color: #f1f5f9;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#tr-preview-box {
+  margin-top: 10px;
+  background: #1e293b;
+  border-radius: 6px;
+  padding: 10px;
+  border-left: 3px solid #38bdf8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tr-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.tr-insert-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
