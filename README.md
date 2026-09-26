@@ -1,13 +1,3 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
-
-# TradeReply AI — Checkatrade Auto-Reply Extension
-
-Lead analysis and personalised auto-reply drafting for UK tradespeople, plus an
-injectable Manifest V3 browser extension for Checkatrade / MyBuilder.
-
-View your app in AI Studio: https://ai.studio/apps/d4c444d0-a4ce-4f52-aad2-650865c42c32
 
 ## Run locally
 
