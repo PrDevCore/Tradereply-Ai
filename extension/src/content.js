@@ -52,31 +52,132 @@
     };
   }
 
+  // The composer is matched from most-specific to most-generic. A generic
+  // contenteditable/textarea anywhere on the page is the last resort, because
+  // matching a search box would insert a reply into the wrong field.
+  const COMPOSER_SELECTOR_FAMILIES = [
+    'textarea[name="message"]',
+    'textarea[name="reply"]',
+    'textarea[id*="message" i]',
+    'textarea[id*="reply" i]',
+    'textarea[placeholder*="write a reply" i]',
+    'textarea[placeholder*="message" i]',
+    'textarea[placeholder*="reply" i]',
+    'textarea[aria-label*="message" i]',
+    'textarea[aria-label*="reply" i]',
+    'div[contenteditable="true"][role="textbox"]',
+    'div[contenteditable="true"]',
+    'textarea',
+  ];
+
   function findChatInput() {
-    return document.querySelector('textarea[name="message"], textarea[placeholder*="message" i], textarea[placeholder*="reply" i], div[contenteditable="true"]');
+    for (const selector of COMPOSER_SELECTOR_FAMILIES) {
+      let found;
+      try {
+        found = document.querySelector(selector);
+      } catch (e) {
+        continue; // an unsupported selector must not abort the whole scan
+      }
+      if (!found) continue;
+      // Never target a field that is hidden or disabled.
+      if (found.disabled) continue;
+      const rect = found.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      return found;
+    }
+    return null;
   }
 
+  // Selector families tried in order. Checkatrade redesigns its trade portal
+  // periodically, so detection must not depend on any single class name: we try
+  // the most specific known containers first, then test-id hooks, then a
+  // structural heuristic. A miss is reported, never silently invented.
+  const LEAD_SELECTOR_FAMILIES = [
+    '[data-testid="lead-message"]',
+    '[data-testid="customer-message"]',
+    '.message-body',
+    '.lead-description',
+    '.chat-bubble--customer',
+    '[class*="CustomerMessage"]',
+    '[class*="customer-message"]',
+    '[class*="leadDetail"]',
+    '[class*="MessageBody"]',
+  ];
+
+  // The tradesperson's own sent messages must never be read as the enquiry, or the
+  // model would be asked to reply to the reply.
+  const OWN_MESSAGE_SELECTOR =
+    '.chat-bubble--trader, .chat-bubble--self, [class*="sentMessage"], [class*="SentMessage"], [class*="MessageSent"], [class*="ownMessage"]';
+
+  function normaliseLeadText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // Read one element's text only if it is not the tradesperson's own message.
+  function textFromCandidate(element) {
+    if (!element) return '';
+    if (element.matches && element.matches(OWN_MESSAGE_SELECTOR)) return '';
+    // A candidate nested inside an own-message wrapper is also the tradesperson's.
+    if (element.closest && element.closest(OWN_MESSAGE_SELECTOR)) return '';
+    return normaliseLeadText(element.innerText);
+  }
+
+  // Last-resort structural heuristic: find the main conversation region and read
+  // the customer-side blocks within it. Kept last because it is the most likely
+  // to produce noise on a layout we have never seen.
+  function detectByConversationRegion() {
+    const region = document.querySelector(
+      'main, [role="main"], [class*="conversation" i], [class*="thread" i], [class*="chat" i]'
+    );
+    if (!region) return [];
+
+    const blocks = region.querySelectorAll('p, li, div');
+    const collected = [];
+    blocks.forEach((block) => {
+      // Only leaf-ish nodes carry a single message rather than a whole container.
+      if (block.children.length > 2) return;
+      const text = textFromCandidate(block);
+      if (text.length >= 25) collected.push(text);
+    });
+    // Cap the fallback so a long thread cannot blow the server's field ceiling.
+    return collected.slice(-8);
+  }
+
+  // Returns the detected enquiry text, or '' when nothing could be read.
   function findCustomerMessage() {
-    // Detect Checkatrade lead text container
-    const msgElements = document.querySelectorAll('.message-body, .lead-description, [data-testid="lead-message"], .chat-bubble--customer');
-    if (msgElements.length > 0) {
-      return Array.from(msgElements).map(el => el.innerText.trim()).join('\n\n');
+    for (const selector of LEAD_SELECTOR_FAMILIES) {
+      let matched;
+      try {
+        matched = document.querySelectorAll(selector);
+      } catch (e) {
+        continue; // an unsupported selector must not abort the whole scan
+      }
+      const parts = [];
+      matched.forEach((el) => {
+        const text = textFromCandidate(el);
+        if (text) parts.push(text);
+      });
+      if (parts.length > 0) return parts.join('\n\n');
     }
-    return '';
+
+    const fallback = detectByConversationRegion();
+    return fallback.length > 0 ? fallback.join('\n\n') : '';
   }
 
   // Insert generated text into the composer without ever using innerHTML: the text
   // is derived from page content plus model output, so it must be treated as data.
+  // Returns true when the text was actually written somewhere. A silent no-op here
+  // is the single most confusing failure mode, so callers must be able to tell.
   function insertReply(text) {
     // Re-query rather than reusing the node captured at injection time: Checkatrade
     // re-renders the composer on many interactions, leaving the old node detached.
     const target = findChatInput();
-    if (!target) return;
+    if (!target) return false;
 
     if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
       target.value = text;
       target.dispatchEvent(new Event('input', { bubbles: true }));
-      return;
+      return true;
     }
 
     target.textContent = '';
@@ -85,17 +186,24 @@
       target.appendChild(document.createTextNode(line));
     });
     target.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
   }
 
   function injectFloatingBar() {
     if (document.getElementById('tradereply-floating-widget')) return;
 
-    // Only activate on a page that genuinely contains a customer enquiry.
-    // Never inject speculatively and never invent a lead message.
+    // Never inject speculatively and never invent a lead message: the bar only
+    // appears once a real enquiry has been read from the page.
     if (!findCustomerMessage()) return;
 
     const inputArea = findChatInput();
-    if (!inputArea) return;
+    // If no composer was found the bar is still useful — the tradesperson can
+    // paste the message manually and copy the draft out — so anchor it to the
+    // conversation region or the body rather than bailing out silently.
+    const anchor = inputArea
+      ? inputArea.parentNode
+      : document.querySelector('main, [role="main"]') || document.body;
+    if (!anchor) return;
 
     const widget = document.createElement('div');
     widget.id = 'tradereply-floating-widget';
@@ -119,16 +227,48 @@
       <div id="tr-preview-box" style="display:none;"></div>
     `;
 
-    inputArea.parentNode.insertBefore(widget, inputArea);
+    // When no composer was detected, offer a manual entry box so a detection miss
+    // degrades into "type it yourself" instead of "the extension does nothing".
+    // Built with DOM nodes, never innerHTML, since its value is user/model data.
+    if (!inputArea) {
+      const manualWrap = document.createElement('div');
+      manualWrap.id = 'tr-manual-wrap';
+      manualWrap.style.marginTop = '8px';
+
+      const manualLabel = document.createElement('label');
+      manualLabel.className = 'tr-manual-label';
+      manualLabel.htmlFor = 'tr-manual-lead';
+      manualLabel.textContent = 'Lead not detected automatically — paste the enquiry here:';
+
+      const manualInput = document.createElement('textarea');
+      manualInput.id = 'tr-manual-lead';
+      manualInput.className = 'tr-manual-input';
+      manualInput.rows = 3;
+      manualInput.placeholder = 'Paste the customer message…';
+
+      manualWrap.appendChild(manualLabel);
+      manualWrap.appendChild(manualInput);
+      widget.appendChild(manualWrap);
+    }
+
+    anchor.insertBefore(widget, inputArea || null);
+
+    // The generate handler reads the manual box first when detection found nothing.
+    function resolveLeadText() {
+      const detected = findCustomerMessage();
+      if (detected) return detected;
+      const manual = document.getElementById('tr-manual-lead');
+      return manual ? normaliseLeadText(manual.value) : '';
+    }
 
     document.getElementById('tr-generate-btn').addEventListener('click', async () => {
       const btn = document.getElementById('tr-generate-btn');
       const previewBox = document.getElementById('tr-preview-box');
       const tone = document.getElementById('tr-tone-select').value;
-      const leadText = findCustomerMessage();
+      const leadText = resolveLeadText();
 
       if (!leadText) {
-        alert('TradeReply AI: no customer enquiry text detected on this page. Open the actual lead thread, or use the extension popup to paste the message manually.');
+        alert('TradeReply AI: no customer enquiry text detected on this page. Open the actual lead thread, or paste the message into the box above.');
         return;
       }
 
@@ -192,8 +332,12 @@
         previewBox.style.display = 'block';
 
         insertBtn.addEventListener('click', () => {
-          insertReply(data.replyText);
+          const inserted = insertReply(data.replyText);
           previewBox.style.display = 'none';
+          if (!inserted) {
+            // Never fail silently — the user must know the draft is still recoverable.
+            alert('TradeReply AI could not find the message box on this page, so the reply was NOT inserted.\n\nSelect the text above and copy it, then paste it into Checkatrade yourself.');
+          }
         });
       } catch (err) {
         alert('Could not reach the TradeReply AI engine: ' + err.message);
