@@ -15,11 +15,6 @@ export interface EngineResult<T> {
   error?: string;
 }
 
-/**
- * Vite inlines this at build time, so it is NOT a secret — anyone can read it in the
- * bundle. It exists only so a deployment that sets TRADEREPLY_API_TOKEN stops random
- * scanners from spending the Gemini budget.
- */
 const CLIENT_TOKEN =
   ((import.meta as any).env?.VITE_TRADEREPLY_API_TOKEN as string | undefined)?.trim() || '';
 
@@ -33,14 +28,25 @@ function describeFailure(payload: any, status: number): string {
 
 /** POST a JSON body to the API, never throwing: failures come back as `ok: false`. */
 export async function postEngine<T>(path: string, body: unknown): Promise<EngineResult<T>> {
+  return requestEngine<T>(path, { method: 'POST', body });
+}
+
+/**
+ * Same contract as postEngine for the other verbs, so the workspace can read and
+ * update the queue through one failure-shaped helper instead of raw fetch.
+ */
+export async function requestEngine<T>(
+  path: string,
+  init: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown },
+): Promise<EngineResult<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (CLIENT_TOKEN) headers['x-tradereply-token'] = CLIENT_TOKEN;
 
   try {
     const res = await fetch(path, {
-      method: 'POST',
+      method: init.method,
       headers,
-      body: JSON.stringify(body),
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
 
     const payload: any = await res.json().catch(() => null);

@@ -6,7 +6,10 @@
 (function() {
   console.log('[TradeReply AI] Extension initialized on Checkatrade');
 
-  const REQUEST_TIMEOUT_MS = 90000;
+  // The worker may spend up to a minute waking a cold instance before the engine call
+  // even starts, so this budget must sit above the worker's own total worst case —
+  // otherwise the relay times out here and hides the worker's real error.
+  const REQUEST_TIMEOUT_MS = 150000;
 
   // Relay one request through the service worker. The endpoint NAME is the only
   // thing the page context controls — never a full URL — so a compromised page
@@ -222,6 +225,7 @@
           <option value="consultative_expert">🧠 Consultative</option>
         </select>
         <button id="tr-generate-btn" class="tr-primary-btn">✨ Draft Auto-Reply</button>
+        <button id="tr-file-btn" class="tr-secondary-btn" title="Add this lead to your TradeReply workspace">📥 Add to Workspace</button>
         <button id="tr-open-options-btn" class="tr-secondary-btn" title="Template library & options">📚 Templates</button>
       </div>
       <div id="tr-preview-box" style="display:none;"></div>
@@ -260,6 +264,44 @@
       const manual = document.getElementById('tr-manual-lead');
       return manual ? normaliseLeadText(manual.value) : '';
     }
+
+    // File the detected enquiry into the workspace queue so the tradesperson can
+    // work through every lead in one place. Failures are reported, never swallowed.
+    document.getElementById('tr-file-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('tr-file-btn');
+      const leadText = resolveLeadText();
+
+      if (!leadText) {
+        alert('TradeReply AI: no customer enquiry text detected, so there is nothing to file.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = '⏳ Filing...';
+      try {
+        const result = await requestEngine('file-lead', {
+          customerName: document.title ? document.title.split(/[|\-–—]/)[0].trim() || 'Checkatrade lead' : 'Checkatrade lead',
+          messageText: leadText,
+          platform: location.hostname.indexOf('mybuilder') !== -1 ? 'MyBuilder' : 'Checkatrade',
+          jobTitle: leadText.slice(0, 80),
+          isDemo: false
+        });
+
+        if (!result.ok || !result.data) {
+          alert('TradeReply AI could not file this lead: ' + engineErrorMessage(result));
+          return;
+        }
+        btn.innerText = '✅ Filed';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerText = '📥 Add to Workspace';
+        }, 2500);
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerText = '📥 Add to Workspace';
+        alert('TradeReply AI could not file this lead: ' + err.message);
+      }
+    });
 
     document.getElementById('tr-generate-btn').addEventListener('click', async () => {
       const btn = document.getElementById('tr-generate-btn');

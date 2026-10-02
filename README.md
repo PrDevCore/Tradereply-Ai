@@ -44,10 +44,11 @@ All four AI endpoints call the Google Gemini API directly
 | `POST /api/rewrite-draft` | Rewrite / polish an existing draft |
 | `GET /api/health` | Live liveness probe of the Gemini engine |
 
-If `GEMINI_API_KEY` is not set, these endpoints return
-`503 AI_ENGINE_NOT_CONFIGURED`. There are deliberately no mock, stub or canned
-fallback responses, so fabricated AI output can never be mistaken for a real
-result. The app footer reports the probed engine state as **LIVE** or **OFFLINE**.
+If neither `GEMINI_API_KEY` nor a usable local Ollama model is configured, these
+endpoints return `503 AI_ENGINE_NOT_CONFIGURED`. There are deliberately no mock,
+stub or canned fallback responses, so fabricated AI output can never be mistaken
+for a real result. The app footer reports the probed engine state as **LIVE** or
+**OFFLINE**.
 
 Requests are retried with backoff on transient upstream conditions (Google's
 `503 UNAVAILABLE` on newly released models), then served by the next model in
@@ -61,6 +62,44 @@ actually answered as `engine`, so a fallback is never silent. This logic lives i
 Network errors are unwrapped from undici's opaque `"fetch failed"` message into
 the real cause chain (DNS, TLS, reset, timeout) so failures are diagnosable
 rather than mysterious.
+
+### Local Ollama provider (optional)
+
+A second **real** provider is supported: a local [Ollama](https://ollama.com)
+daemon. It is not a mock and not a fallback simulation — it runs actual local
+models with no API key and no per-token cost.
+
+```bash
+ollama serve
+ollama pull llama3.2
+```
+
+```bash
+OLLAMA_MODEL=llama3.2   # add to .env.local
+```
+
+How it slots into the chain:
+
+| `GEMINI_API_KEY` | Resulting chain |
+| --- | --- |
+| set | `gemini-3.8-flash` → `GEMINI_FALLBACK_MODELS` → **`ollama:llama3.2`** |
+| not set | **`ollama:llama3.2`** alone (the local model becomes primary) |
+
+Entries are written as `ollama:<model>`; anything unprefixed is Gemini, so
+existing configuration is unchanged. At startup the server calls the cheap
+`GET /api/tags` and **disables** the Ollama targets if the daemon is unreachable
+or the model has not been pulled, logging exactly which — so a configured-but-
+absent Ollama degrades to the existing behaviour instead of failing requests.
+A refused local connection is classified transient, so the chain moves on.
+
+Local models get their own per-attempt ceiling, `OLLAMA_TIMEOUT_MS` (default
+45000), because CPU inference is slower than a hosted flash model. Ollama output
+is requested with `format: 'json'` and still passes through the same
+`cleanAndParseJSON` fence-stripping as Gemini, so the JSON contract is identical.
+
+Whichever provider served a request is reported in every response as `engine`
+(`gemini-3.8-flash` or `ollama:llama3.2`), and `/api/health` adds `providers` and
+the full `chain` order.
 
 Observed model availability when measured: `gemini-3.8-flash` (slow under load),
 `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite` and

@@ -15,6 +15,10 @@ import { timingSafeEqual } from 'node:crypto';
 export const FIELD_LIMITS = {
   leadMessage: 4000,
   currentText: 8000,
+  // Workspace routes. customerName is a display label, so a modest ceiling is
+  // enough; the draft body reuses the larger currentText-style ceiling.
+  customerName: 200,
+  draft: 8000,
   instruction: 500,
   purpose: 500,
   customInstructions: 2000,

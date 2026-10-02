@@ -206,7 +206,172 @@ export async function generateWithFallback<T>(
   throw new EngineChainError(describeError(lastError), lastModel, lastError);
 }
 
+/**
+ * Local Ollama transport.
+ *
+ * Ollama is a SECOND REAL provider, not a mock: every call here is a live
+ * HTTP request to a running Ollama daemon. It exists so the same prompt and the
+ * same JSON contract can be served by a local model — no API key, no per-token
+ * cost — and so the Gemini chain has a real fallback that does not depend on
+ * Google's quota.
+ *
+ * As in engine.ts, the network call is injected by the caller so the request
+ * shaping and response parsing can be unit tested without a daemon.
+ */
+
+export interface OllamaConfig {
+  /** Daemon base URL, e.g. http://127.0.0.1:11434. */
+  baseUrl: string;
+  /** Wall-clock budget for one generate call, in milliseconds. */
+  timeoutMs: number;
+}
+
+/** Default daemon address. Ollama binds 127.0.0.1:11434 by default. */
+export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+
+/**
+ * Normalise the configured base URL: no trailing slash, and an absolute URL only.
+ *
+ * Returns null for anything unusable so the caller can report a real
+ * configuration error instead of letting fetch fail with "Failed to fetch".
+ */
+export function normaliseOllamaBaseUrl(value: string | undefined | null): string | null {
+  const trimmed = (value || '').trim() || DEFAULT_OLLAMA_BASE_URL;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The JSON body for a generate call.
+ *
+ * `format: 'json'` is Ollama's schema-free way of constraining output to valid
+ * JSON, which is the closest equivalent to Gemini's responseMimeType. It does not
+ * enforce a schema, so `cleanAndParseJSON` on the way back still matters.
+ */
+export function buildOllamaRequest(model: string, prompt: string): {
+  url: string;
+  body: Record<string, unknown>;
+} {
+  const base = normaliseOllamaBaseUrl(null) || DEFAULT_OLLAMA_BASE_URL;
+  return {
+    url: `${base}/api/generate`,
+    body: {
+      model,
+      prompt,
+      // Non-streaming keeps the response shape identical to what the chain expects.
+      stream: false,
+      format: 'json',
+      options: { temperature: 0.4 },
+    },
+  };
+}
+
+/**
+ * Reduce an Ollama response to the text field the chain reads.
+ *
+ * Ollama reports failures with HTTP 200 and an `error` string in some versions,
+ * so the error field is checked first — otherwise a failed generation would be
+ * parsed as empty content and look like a successful, empty reply.
+ */
+export function parseOllamaResponse(payload: any): string {
+  if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+    throw new Error(payload.error.trim());
+  }
+  const text = payload && (payload.response ?? payload.message?.content);
+  if (typeof text !== 'string' || !text.trim()) {
+    throw new Error('Ollama returned an empty response');
+  }
+  return text;
+}
+
+/**
+ * Build the live call for one chain entry.
+ *
+ * `fetchImpl` is injectable for tests; the default is the global fetch. The
+ * per-attempt abort signal comes from generateWithFallback, so this call obeys
+ * exactly the same timeout and budget rules as the Gemini one.
+ */
+export function createOllamaCall(config: OllamaConfig) {
+  return async (
+    target: string,
+    abortSignal: AbortSignal,
+    contents: string,
+    fetchImpl: typeof fetch = fetch,
+  ): Promise<{ text: string }> => {
+    const baseUrl = normaliseOllamaBaseUrl(config.baseUrl);
+    if (!baseUrl) {
+      throw new Error('OLLAMA_BASE_URL is not a valid http(s) URL');
+    }
+
+    const model = target.startsWith(OLLAMA_PREFIX)
+      ? target.slice(OLLAMA_PREFIX.length)
+      : target;
+    if (!model) throw new Error('No Ollama model configured for this target');
+
+    const request = buildOllamaRequest(model, contents);
+    const res = await fetchImpl(request.url.replace(DEFAULT_OLLAMA_BASE_URL, baseUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request.body),
+      signal: abortSignal,
+    });
+
+    const payload: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(`Ollama HTTP ${res.status}: ${payload?.error || 'request failed'}`);
+    }
+    return { text: parseOllamaResponse(payload) };
+  };
+}
+
 /** Model name to report for a failed request, whatever the failure shape. */
 export function attemptedModelOf(err: unknown, fallbackModel: string): string {
   return err instanceof EngineChainError ? err.attemptedModel : fallbackModel;
+}
+
+// ---------------------------------------------------------------------------
+// PROVIDER-PREFIXED TARGETS
+//
+// The fallback chain is a flat list of strings, so a second provider has to be
+// distinguishable from the first one by name alone. Targets are therefore written
+// as "<provider>:<model>" and dispatched on that prefix (see splitTarget).
+//
+// `buildModelChain` and the rest of the chain logic stay untouched: a prefixed
+// target is just another string, so a bare Gemini model id keeps working and all
+// existing behaviour — and its tests — remain valid.
+// ---------------------------------------------------------------------------
+
+/** Prefix marking a target as served by a local Ollama daemon. */
+export const OLLAMA_PREFIX = 'ollama:';
+
+export interface EngineTarget {
+  provider: 'gemini' | 'ollama';
+  /** Model id with the provider prefix removed, as the provider itself expects it. */
+  model: string;
+}
+
+/**
+ * Split a chain entry into provider and bare model id.
+ *
+ * Anything unprefixed is Gemini, so every previously configured model id keeps
+ * its meaning without having to be rewritten. `splitTarget('ollama:')` yields no
+ * model, which the caller rejects rather than calling a provider with no model.
+ */
+export function splitTarget(target: string): EngineTarget {
+  const trimmed = (target || '').trim();
+  if (trimmed.toLowerCase().startsWith(OLLAMA_PREFIX)) {
+    return { provider: 'ollama', model: trimmed.slice(OLLAMA_PREFIX.length).trim() };
+  }
+  return { provider: 'gemini', model: trimmed };
+}
+
+/** Canonical, human-readable name for a chain entry — reported back as `engine`. */
+export function describeTarget(target: string): string {
+  const { provider, model } = splitTarget(target);
+  return provider === 'ollama' ? `${OLLAMA_PREFIX}${model}` : model;
 }

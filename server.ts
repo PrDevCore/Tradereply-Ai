@@ -6,9 +6,12 @@ import { GoogleGenAI, Type } from '@google/genai';
 import {
   attemptedModelOf,
   cleanAndParseJSON,
+  createOllamaCall,
   describeError,
   generateWithFallback,
   isTransient,
+  normaliseOllamaBaseUrl,
+  splitTarget,
 } from './src/utils/engine.ts';
 import {
   clampNumber,
@@ -20,6 +23,8 @@ import {
   tokensMatch,
   type RateLimiter,
 } from './src/utils/apiGuards.ts';
+import { WorkspaceStore, type WorkspaceLead } from './src/server/workspaceStore.ts';
+import { isLiveChannel } from './src/server/channelAdapters.ts';
 
 // Load .env.local first (the file the README instructs users to create), then .env.
 // dotenv does not overwrite already-set keys, so .env.local takes precedence.
@@ -71,6 +76,75 @@ const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 25000;
 // stack up minutes of worst-case latency when upstream is fully congested.
 const GEMINI_TOTAL_BUDGET_MS = Number(process.env.GEMINI_TOTAL_BUDGET_MS) || 60000;
 const ENGINE_ONLINE = apiKey.trim().length > 0;
+
+// ---------------------------------------------------------------------------
+// OPTIONAL SECOND PROVIDER — LOCAL OLLAMA
+//
+// Gemini remains the default and the primary. Ollama is an opt-in local provider
+// that runs REAL models with no API key and no per-token cost, so it is useful
+// two ways: as the engine when no Gemini key exists, and as the last entry in
+// the fallback chain when Google is unreachable or out of quota.
+//
+// Targets in the chain are prefixed "ollama:<model>"; an unprefixed entry is
+// still Gemini, so existing GEMINI_* configuration is unchanged by this.
+// ---------------------------------------------------------------------------
+const OLLAMA_BASE_URL = normaliseOllamaBaseUrl(process.env.OLLAMA_BASE_URL);
+const OLLAMA_MODEL = (process.env.OLLAMA_MODEL || '').trim();
+const OLLAMA_FALLBACK_MODELS = (process.env.OLLAMA_FALLBACK_MODELS || '')
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean)
+  // Accept both "ollama:llama3.2" and a bare "llama3.2" so an operator cannot
+  // silently configure a bare name and have it sent to Gemini instead.
+  .map((name) => (name.toLowerCase().startsWith('ollama:') ? name : `ollama:${name}`));
+const OLLAMA_CONFIGURED =
+  Boolean(OLLAMA_MODEL) && OLLAMA_BASE_URL !== null;
+// Canonical chain entries for the local provider — the prefix is what makes the
+// chain dispatch these to Ollama instead of Gemini, so it is added once here
+// rather than being re-derived (and possibly forgotten) at each use site.
+const OLLAMA_PRIMARY_TARGET = OLLAMA_MODEL ? `ollama:${OLLAMA_MODEL}` : '';
+const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 45000;
+
+// A local model that is not actually pulled would otherwise be attempted on every
+// request and fail every time, adding latency for nothing.
+const OLLAMA_AVAILABLE = OLLAMA_CONFIGURED ? await probeOllama() : false;
+
+// The engine is usable if EITHER provider is configured and reachable.
+const ENGINE_ONLINE_WITH_OLLAMA = ENGINE_ONLINE || OLLAMA_AVAILABLE;
+
+/**
+ * One cheap call at startup to confirm the daemon is actually up.
+ *
+ * `/api/tags` lists installed models and is far cheaper than a generation. Its
+ * failure must not stop the server booting, so every error is swallowed and the
+ * caller falls back to "unavailable".
+ */
+async function probeOllama(): Promise<boolean> {
+  if (!OLLAMA_CONFIGURED) return false;
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return false;
+    const payload: any = await res.json().catch(() => null);
+    const installed: string[] = Array.isArray(payload?.models)
+      ? payload.models.map((m: any) => String(m?.name || ''))
+      : [];
+    // A configured model that was never pulled (`ollama pull llama3.2`) would fail
+    // on every request, so it is reported as unavailable with a clear log line.
+    const wanted = [OLLAMA_MODEL, ...OLLAMA_FALLBACK_MODELS.map((n) => n.slice(6))];
+    const missing = wanted.filter((name) => !installed.some((i) => i === name || i.startsWith(name + ':')));
+    if (missing.length) {
+      console.warn(
+        `[TradeReply AI] Ollama is running at ${OLLAMA_BASE_URL} but these models are not pulled: ${missing.join(', ')}. Run "ollama pull <model>".`,
+      );
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // API HARDENING
@@ -170,16 +244,17 @@ const ai = new GoogleGenAI({
 
 // Guard applied to every AI route: run the real model, or fail loudly.
 function requireLiveEngine(_req: Request, res: Response, next: NextFunction) {
-  if (!ENGINE_ONLINE) {
-    return res.status(503).json({
-      error: 'AI_ENGINE_NOT_CONFIGURED',
-      engine: GEMINI_MODEL,
-      live: false,
-      message:
-        'GEMINI_API_KEY is not configured, so the live Gemini engine is offline. TradeReply AI never returns simulated replies — add your key to .env.local and restart the server.',
-    });
-  }
-  next();
+  if (ENGINE_ONLINE_WITH_OLLAMA) return next();
+  const detail = OLLAMA_CONFIGURED && !OLLAMA_AVAILABLE
+    ? 'Ollama is configured but unreachable at ' + OLLAMA_BASE_URL + ' (or the model is not pulled).'
+    : 'GEMINI_API_KEY is not configured and no local Ollama model is available.';
+  return res.status(503).json({
+    error: 'AI_ENGINE_NOT_CONFIGURED',
+    engine: GEMINI_MODEL,
+    live: false,
+    message:
+      detail + ' TradeReply AI never returns simulated replies — configure a real engine and restart the server.',
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -189,47 +264,181 @@ function requireLiveEngine(_req: Request, res: Response, next: NextFunction) {
 // be unit tested without booting Express or holding a real API key. Below we only
 // bind that logic to the real Google GenAI client.
 function generateWithEngine(args: { contents: any; config?: any }) {
-  return generateWithFallback(
+  const chain = buildEngineChain();
+  // Explicit result type: the two providers return different SDK response
+  // objects, but both expose the generated text on `.text`, which is the only
+  // field every route below reads.
+  return generateWithFallback<{ text?: string }>(
     {
-      primaryModel: GEMINI_MODEL,
-      fallbackModels: GEMINI_FALLBACK_MODELS,
-      timeoutMs: GEMINI_TIMEOUT_MS,
+      primaryModel: chain[0] || GEMINI_MODEL,
+      fallbackModels: chain.slice(1),
+      // A local model on CPU is slower than a hosted flash model, so give it its
+      // own per-attempt ceiling rather than the tighter Gemini one.
+      timeoutMs: Math.max(GEMINI_TIMEOUT_MS, OLLAMA_AVAILABLE ? OLLAMA_TIMEOUT_MS : 0),
       totalBudgetMs: GEMINI_TOTAL_BUDGET_MS,
     },
     (model, abortSignal) =>
-      ai.models.generateContent({
-        ...args,
-        model,
-        config: { ...(args.config || {}), abortSignal },
-      }),
+      // The chain entry carries its own provider prefix, so one flat fallback list
+      // can span both engines. `contents` is the shared prompt string.
+      splitTarget(model).provider === 'ollama'
+        ? ollamaCall(model, abortSignal, typeof args.contents === 'string' ? args.contents : JSON.stringify(args.contents))
+        : ai.models.generateContent({
+            ...args,
+            model: splitTarget(model).model,
+            config: { ...(args.config || {}), abortSignal },
+          }),
   );
 }
+
+// Bound once and reused for every Ollama attempt.
+const ollamaCall = createOllamaCall({
+  baseUrl: OLLAMA_BASE_URL || '',
+  timeoutMs: OLLAMA_TIMEOUT_MS,
+});
+
+/**
+ * The ordered provider chain for one request.
+ *
+ * When a Gemini key is present it stays primary and Ollama is appended as the
+ * final fallback. With no key, the local model is promoted to primary so a
+ * keyless deployment still serves real replies.
+ */
+function buildEngineChain() {
+  const ollamaEntries = OLLAMA_AVAILABLE ? [OLLAMA_PRIMARY_TARGET, ...OLLAMA_FALLBACK_MODELS] : [];
+  if (!ENGINE_ONLINE) return ollamaEntries;
+  return [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS, ...ollamaEntries];
+}
+
+// ---------------------------------------------------------------------------
+// WORKSPACE — the customer-response channel queue.
+//
+// These routes are deliberately NOT engine-gated: reading and filing a lead costs
+// nothing, so requiring a live Gemini call would make the queue unusable whenever
+// the model is briefly overloaded. They are token-gated and rate limited like
+// every other state-changing route.
+// ---------------------------------------------------------------------------
+const workspaceStore = new WorkspaceStore(
+  process.env.WORKSPACE_STORE_PATH || path.join(__dirname, 'data', 'workspace.json'),
+);
+await workspaceStore.load();
+
+// Sort newest-first so the queue matches what a tradesperson expects to see.
+function sortLeads(leads: WorkspaceLead[]) {
+  return [...leads].sort(
+    (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+  );
+}
+
+// GET /api/leads — the queue, with optional filters applied server-side.
+app.get('/api/leads', requireApiToken, rateLimit(aiRateLimiter, 'leads-list'), (req: Request, res: Response) => {
+  const stage = typeof req.query.stage === 'string' ? req.query.stage : '';
+  const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+
+  let leads = workspaceStore.listLeads();
+  if (req.query.archived !== 'true') leads = leads.filter((l) => !l.archived);
+  if (stage) leads = leads.filter((l) => l.stage === stage);
+  if (search) {
+    // The enquiry body is searchable too: a tradesperson often remembers only
+    // what the customer said ("boiler", "no heating"), not the customer name.
+    leads = leads.filter((l) =>
+      [l.customerName, l.jobTitle, l.location, l.tradeCategory, l.postcode, l.messageText]
+        .join(' ')
+        .toLowerCase()
+        .includes(search),
+    );
+  }
+
+  // `live` is false for every platform until a credentialed driver is registered,
+  // so the UI can never imply these arrived from a live Checkatrade API.
+  res.json({
+    leads: sortLeads(leads).map((lead) => ({
+      ...lead,
+      channelLive: isLiveChannel(lead.platform),
+    })),
+    counts: {
+      total: workspaceStore.listLeads().filter((l) => !l.archived).length,
+      unresponded: workspaceStore.listLeads().filter((l) => l.stage === 'new' && !l.archived).length,
+    },
+    liveChannels: false,
+  });
+});
+
+// POST /api/leads — file a lead into the queue. `/api/file-lead` is an alias the
+// extension's service worker is allowed to call, matching its endpoint allowlist.
+const handleCreateLead = async (req: Request, res: Response) => {
+  const error = firstError(
+    textFieldError(req.body?.customerName, 'customerName', { required: true }),
+    textFieldError(req.body?.messageText, 'leadMessage', { required: true }),
+  );
+  if (error) return invalidRequest(res, error);
+  res.status(201).json({ lead: await workspaceStore.addLead(req.body) });
+};
+app.post('/api/leads', requireApiToken, rateLimit(aiRateLimiter, 'leads-create'), handleCreateLead);
+app.post('/api/file-lead', requireApiToken, rateLimit(aiRateLimiter, 'leads-create'), handleCreateLead);
+
+// GET /api/leads/:id — one lead with its full thread.
+app.get('/api/leads/:id', requireApiToken, rateLimit(aiRateLimiter, 'leads-read'), (req: Request, res: Response) => {
+  const lead = workspaceStore.getLead(req.params.id);
+  if (!lead) return res.status(404).json({ error: 'Lead not found', live: false });
+  res.json({ lead });
+});
+
+// PATCH /api/leads/:id — move a lead through the pipeline or archive it.
+app.patch('/api/leads/:id', requireApiToken, rateLimit(aiRateLimiter, 'leads-update'), async (req: Request, res: Response) => {
+  const lead = await workspaceStore.updateLead(req.params.id, req.body);
+  if (!lead) return res.status(404).json({ error: 'Lead not found', live: false });
+  res.json({ lead });
+});
+
+// POST /api/leads/:id/messages — append to the thread. A 'tradesperson' row
+// advances the stage to 'replied'; a 'draft' row deliberately does not.
+app.post('/api/leads/:id/messages', requireApiToken, rateLimit(aiRateLimiter, 'leads-message'), async (req: Request, res: Response) => {
+  const error = firstError(textFieldError(req.body?.body, 'draft', { required: true }));
+  if (error) return invalidRequest(res, error);
+  const message = await workspaceStore.addMessage(req.params.id, req.body);
+  if (!message) return res.status(404).json({ error: 'Lead not found', live: false });
+  res.status(201).json({ message, lead: workspaceStore.getLead(req.params.id) });
+});
+
+// DELETE /api/leads/:id
+app.delete('/api/leads/:id', requireApiToken, rateLimit(aiRateLimiter, 'leads-delete'), async (req: Request, res: Response) => {
+  const removed = await workspaceStore.deleteLead(req.params.id);
+  if (!removed) return res.status(404).json({ error: 'Lead not found', live: false });
+  res.json({ deleted: true });
+});
 
 // 0. Engine Health — live probe against the real Gemini engine
 // Intentionally NOT token-gated: it is the app footer's liveness indicator and the
 // one endpoint a client without a configured token may reach. It is rate limited
 // because it does spend one (small) paid model call per hit.
 app.get('/api/health', rateLimit(healthRateLimiter, 'health'), async (_req: Request, res: Response) => {
-  if (!ENGINE_ONLINE) {
+  if (!ENGINE_ONLINE_WITH_OLLAMA) {
     return res.status(503).json({
       status: 'offline',
-      engine: GEMINI_MODEL,
+      engine: ENGINE_ONLINE ? GEMINI_MODEL : OLLAMA_PRIMARY_TARGET,
       live: false,
-      detail: 'GEMINI_API_KEY is not set — no simulated responses are served.',
+      detail: OLLAMA_CONFIGURED && !OLLAMA_AVAILABLE
+        ? 'Ollama is configured but unreachable at ' + OLLAMA_BASE_URL + ' — no simulated responses are served.'
+        : 'GEMINI_API_KEY is not set and no local Ollama model is available — no simulated responses are served.',
     });
   }
 
   const startedAt = Date.now();
   try {
     // Probe the exact same path a real request takes — including retries and the
-    // fallback model — so "online" genuinely means requests will succeed.
+    // fallback chain — so "online" genuinely means requests will succeed.
     const { response, model } = await generateWithEngine({
       contents: 'Reply with the single word: ONLINE',
     });
+    // The chain entry that answered IS the engine name, provider prefix included,
+    // so a caller can always tell which provider served the request.
     return res.json({
       status: 'online',
       engine: model,
-      primaryModel: GEMINI_MODEL,
+      // Which provider actually served the probe, plus the configured chain order.
+      providers: model.startsWith('ollama:') ? 'ollama' : 'gemini',
+      chain: buildEngineChain(),
+      primaryModel: ENGINE_ONLINE ? GEMINI_MODEL : OLLAMA_PRIMARY_TARGET,
       live: true,
       latencyMs: Date.now() - startedAt,
       probe: (response.text || '').trim(),
@@ -631,12 +840,17 @@ app.listen(port, '0.0.0.0', () => {
   console.log(
     `[TradeReply AI] Limits: ${RATE_LIMIT_PER_MINUTE} AI requests/min/IP (health ${HEALTH_RATE_LIMIT_PER_MINUTE}), body cap ${MAX_REQUEST_BYTES}.`,
   );
-  if (ENGINE_ONLINE) {
+  if (ENGINE_ONLINE_WITH_OLLAMA) {
     console.log(`[TradeReply AI] Live Gemini engine ready — model: ${GEMINI_MODEL} (real-time calls only, no simulated responses)`);
     console.log(`[TradeReply AI] Engine health probe: http://localhost:${port}/api/health`);
   } else {
     console.warn('[TradeReply AI] GEMINI_API_KEY is NOT set. AI endpoints will return 503 AI_ENGINE_NOT_CONFIGURED.');
     console.warn('[TradeReply AI] No simulated responses will be served. Create a .env.local file containing:');
     console.warn('[TradeReply AI]   GEMINI_API_KEY=your_key_here');
+  }
+  if (OLLAMA_AVAILABLE) {
+    console.log(`[TradeReply AI] Local Ollama ready at ${OLLAMA_BASE_URL} — model: ${OLLAMA_MODEL}${ENGINE_ONLINE ? ' (appended as the final fallback)' : ' (primary: no Gemini key configured)'}`);
+  } else if (OLLAMA_CONFIGURED) {
+    console.warn(`[TradeReply AI] OLLAMA_MODEL is set but no usable Ollama daemon was found at ${OLLAMA_BASE_URL}. The Ollama targets are disabled; start the daemon and run "ollama pull ${OLLAMA_MODEL}".`);
   }
 });

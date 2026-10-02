@@ -15,7 +15,7 @@
     "build:all": "npm run build && npm run build:extension",
     "preview": "vite preview",
     "start": "tsx server.ts",
-    "test": "node --import tsx --test src/utils/engine.test.ts src/utils/apiGuards.test.ts src/utils/templateFill.test.ts src/utils/extensionGenerator.test.ts",
+    "test": "node --import tsx --test src/utils/engine.test.ts src/utils/apiGuards.test.ts src/utils/templateFill.test.ts src/utils/extensionGenerator.test.ts src/server/workspace.test.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit"
   },

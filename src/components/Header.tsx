@@ -6,14 +6,17 @@ import {
   Sliders,
   Building2,
   Download,
+  Inbox,
   ExternalLink,
   ShieldCheck,
   Zap,
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export';
-  setActiveTab: (tab: 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export') => void;
+  activeTab: 'workspace' | 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export';
+  setActiveTab: (
+    tab: 'workspace' | 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export',
+  ) => void;
   leadsCount: number;
 }
 
@@ -45,6 +48,24 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, leadsCo
 
           {/* Navigation Tabs */}
           <nav className="flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={() => setActiveTab('workspace')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'workspace'
+                  ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Inbox className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Workspace</span>
+              <span className="md:hidden">Queue</span>
+              {leadsCount > 0 && (
+                <span className="ml-1 bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full text-[10px]">
+                  {leadsCount}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => setActiveTab('simulator')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${

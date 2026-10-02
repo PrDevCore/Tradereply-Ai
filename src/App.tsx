@@ -3,6 +3,9 @@ import { Header } from './components/Header.tsx';
 
 // Each tab is code-split, so the landing view no longer ships the whole app in one
 // ~590 kB chunk, and a slow tab download shows TabLoading instead of a blank screen.
+const ResponseWorkspace = lazy(() =>
+  import('./components/ResponseWorkspace.tsx').then((m) => ({ default: m.ResponseWorkspace })),
+);
 const CheckatradeSimulator = lazy(() =>
   import('./components/CheckatradeSimulator.tsx').then((m) => ({ default: m.CheckatradeSimulator })),
 );
@@ -39,8 +42,8 @@ import { BusinessProfile, Lead, Template, ToneSettings } from './types.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export'
-  >('simulator');
+    'workspace' | 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export'
+  >('workspace');
 
   // Leads state
   const [leads, setLeads] = useState<Lead[]>(() => {
@@ -184,6 +187,10 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 pb-12">
         <Suspense fallback={<TabLoading />}>
+          {activeTab === 'workspace' && (
+            <ResponseWorkspace businessProfile={businessProfile} toneSettings={toneSettings} />
+          )}
+
           {activeTab === 'simulator' && (
           <CheckatradeSimulator
             leads={leads}
