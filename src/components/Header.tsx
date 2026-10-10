@@ -8,7 +8,6 @@ import {
   Building2,
   Download,
   Inbox,
-  ExternalLink,
   ShieldCheck,
   Zap,
 } from 'lucide-react';
@@ -171,3 +170,4 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, leadsCo
     </header>
   );
 };
+
