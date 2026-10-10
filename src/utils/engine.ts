@@ -183,7 +183,7 @@ export async function generateWithFallback<T>(
           AbortSignal.timeout(Math.max(1000, Math.min(config.timeoutMs, remainingMs))),
         );
         if (attempt > 1 || model !== config.primaryModel) {
-          warn(`[TradeReply AI] request served by ${model} (attempt ${attempt})`);
+          warn(`[PR Reply AI] request served by ${model} (attempt ${attempt})`);
         }
         return { response, model, attempts };
       } catch (err: unknown) {
@@ -193,7 +193,7 @@ export async function generateWithFallback<T>(
         if (!isTransient(err)) throw err;
 
         warn(
-          `[TradeReply AI] ${model} transient failure (attempt ${attempt}/${maxAttempts}): ${describeError(err)}`,
+          `[PR Reply AI] ${model} transient failure (attempt ${attempt}/${maxAttempts}): ${describeError(err)}`,
         );
 
         if (attempt < maxAttempts) {
@@ -375,3 +375,4 @@ export function describeTarget(target: string): string {
   const { provider, model } = splitTarget(target);
   return provider === 'ollama' ? `${OLLAMA_PREFIX}${model}` : model;
 }
+

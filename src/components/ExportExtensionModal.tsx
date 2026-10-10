@@ -73,7 +73,7 @@ export const ExportExtensionModal: React.FC = () => {
             <span>Export Google Chrome Extension (Manifest V3)</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Download the production-ready browser extension code to run TradeReply AI natively on
+            Download the production-ready browser extension code to run PR Reply AI natively on
             Checkatrade, MyBuilder, and rated directory portals.
           </p>
         </div>
@@ -188,3 +188,4 @@ export const ExportExtensionModal: React.FC = () => {
     </div>
   );
 };
+

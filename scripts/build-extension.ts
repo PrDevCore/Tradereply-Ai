@@ -51,7 +51,7 @@ for (const fileName of requiredFiles) {
 const manifestPath = path.join(outputDir, 'manifest.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 if (manifest.manifest_version !== 3) throw new Error('Extension must use Manifest V3');
-for (const permission of ['storage', 'activeTab', 'scripting']) {
+for (const permission of ['storage', 'activeTab', 'scripting', 'tabs']) {
   if (!manifest.permissions.includes(permission)) throw new Error(`Manifest is missing ${permission}`);
 }
 if (!manifest.host_permissions.includes(`${apiOrigin}/*`)) throw new Error('Manifest is missing the API origin host permission');

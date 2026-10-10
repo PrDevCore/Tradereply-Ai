@@ -80,3 +80,40 @@ test('no channel is reported live until a credentialed driver is registered', ()
   assert.equal(new DemoChannelDriver().live, false);
 });
 
+
+test('platform URL parser accepts any social URL and derives match patterns', async () => {
+  const { parsePlatformUrl } = await import('./platformUrls.ts');
+  const fb = parsePlatformUrl('https://www.facebook.com/somepage/messages');
+  assert.equal(fb.label, 'Facebook');
+  assert.ok(fb.matchPatterns.some((p) => p.includes('facebook.com')));
+  const insta = parsePlatformUrl('instagram.com/someone');
+  assert.equal(insta.label, 'Instagram');
+  assert.throws(() => parsePlatformUrl('not a url'), /URL/);
+});
+
+test('accounts: signup then login, duplicate rejected, bad password rejected', async () => {
+  const { AuthStore } = await import('./authStore.ts');
+  const dir = await mkdtemp(path.join(tmpdir(), 'tradereply-auth-'));
+  const store = new AuthStore(path.join(dir, 'auth.json'));
+  await store.load();
+  const { user, token } = await store.signup('Test@Example.com', 'password123', 'Tester');
+  assert.equal(user.email, 'test@example.com');
+  assert.ok(token.startsWith('tr_'));
+  await assert.rejects(() => store.signup('test@example.com', 'password123', 'Dup'), /already exists/);
+  await assert.rejects(() => store.login('test@example.com', 'wrongpass1'), /Incorrect/);
+  const again = await store.login('test@example.com', 'password123');
+  assert.equal(again.user.id, user.id);
+  assert.ok(store.userForToken(again.token));
+});
+
+test('connections: one host per user, patterns aggregate', async () => {
+  const { ConnectionStore } = await import('./connectionStore.ts');
+  const { parsePlatformUrl } = await import('./platformUrls.ts');
+  const dir = await mkdtemp(path.join(tmpdir(), 'tradereply-conn-'));
+  const store = new ConnectionStore(path.join(dir, 'c.json'));
+  await store.load();
+  const c = await store.add('u1', parsePlatformUrl('https://www.facebook.com/page'));
+  assert.equal(c.label, 'Facebook');
+  await assert.rejects(() => store.add('u1', parsePlatformUrl('https://facebook.com/other')), /already connected/);
+  assert.ok(store.patternsForUser('u1').some((p) => p.includes('facebook.com')));
+});

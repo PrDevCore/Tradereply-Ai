@@ -25,6 +25,9 @@ import {
 } from './src/utils/apiGuards.ts';
 import { WorkspaceStore, type WorkspaceLead } from './src/server/workspaceStore.ts';
 import { isLiveChannel } from './src/server/channelAdapters.ts';
+import { AuthStore, validateSignup, normaliseEmail } from './src/server/authStore.ts';
+import { ConnectionStore } from './src/server/connectionStore.ts';
+import { parsePlatformUrl } from './src/server/platformUrls.ts';
 
 // Load .env.local first (the file the README instructs users to create), then .env.
 // dotenv does not overwrite already-set keys, so .env.local takes precedence.
@@ -322,6 +325,40 @@ const workspaceStore = new WorkspaceStore(
 );
 await workspaceStore.load();
 
+// Accounts + per-user platform connections (the general-tool pivot:
+// users sign up, then attach ANY social/marketplace URL for replies).
+const authStore = new AuthStore(
+  process.env.AUTH_STORE_PATH || path.join(__dirname, 'data', 'auth.json'),
+);
+await authStore.load();
+const connectionStore = new ConnectionStore(
+  process.env.CONNECTIONS_STORE_PATH || path.join(__dirname, 'data', 'connections.json'),
+);
+await connectionStore.load();
+
+function bearerToken(req: Request): string {
+  const h = req.header('authorization') || '';
+  if (h.toLowerCase().startsWith('bearer ')) return h.slice(7).trim();
+  const x = req.header('x-tradereply-session');
+  if (x) return x.trim();
+  return '';
+}
+
+/** Optional auth: attaches req.user when a valid session token is present. */
+function attachUser(req: Request, _res: Response, next: NextFunction) {
+  (req as any).user = authStore.userForToken(bearerToken(req));
+  next();
+}
+app.use(attachUser);
+
+/** Require a signed-in account for routes that are per-user. */
+function requireAccount(req: Request, res: Response, next: NextFunction) {
+  if (!(req as any).user) {
+    return res.status(401).json({ error: 'NOT_SIGNED_IN', live: false, message: 'Create an account and sign in first.' });
+  }
+  next();
+}
+
 // Sort newest-first so the queue matches what a tradesperson expects to see.
 function sortLeads(leads: WorkspaceLead[]) {
   return [...leads].sort(
@@ -405,6 +442,64 @@ app.delete('/api/leads/:id', requireApiToken, rateLimit(aiRateLimiter, 'leads-de
   const removed = await workspaceStore.deleteLead(req.params.id);
   if (!removed) return res.status(404).json({ error: 'Lead not found', live: false });
   res.json({ deleted: true });
+});
+
+// AUTH + PLATFORM CONNECTIONS — the general-tool flow:
+// 1) user creates an account, 2) user pastes ANY social/marketplace URL,
+// 3) the extension + workspace use that connection's host patterns.
+app.post('/api/auth/signup', rateLimit(aiRateLimiter, 'signup'), async (req: Request, res: Response) => {
+  const err = validateSignup(req.body);
+  if (err) return res.status(400).json({ error: err, live: false });
+  try {
+    const { user, token } = await authStore.signup(String(req.body.email), String(req.body.password), String(req.body.displayName ?? ''));
+    res.status(201).json({ user: { id: user.id, email: user.email, displayName: user.displayName }, token });
+  } catch (e: any) {
+    res.status(e?.code === 'EMAIL_TAKEN' ? 409 : 500).json({ error: e?.message || 'Signup failed', live: false });
+  }
+});
+app.post('/api/auth/login', rateLimit(aiRateLimiter, 'login'), async (req: Request, res: Response) => {
+  try {
+    const { user, token } = await authStore.login(String(req.body?.email ?? ''), String(req.body?.password ?? ''));
+    res.json({ user: { id: user.id, email: user.email, displayName: user.displayName }, token });
+  } catch (e: any) {
+    res.status(401).json({ error: e?.message || 'Login failed', live: false });
+  }
+});
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const t = bearerToken(req);
+  if (t) void authStore.logout(t);
+  res.json({ ok: true });
+});
+app.get('/api/auth/me', (req: Request, res: Response) => {
+  const u = (req as any).user;
+  if (!u) return res.status(401).json({ error: 'NOT_SIGNED_IN', live: false });
+  res.json({ user: { id: u.id, email: u.email, displayName: u.displayName } });
+});
+app.get('/api/connections', requireAccount, (req: Request, res: Response) => {
+  res.json({ connections: connectionStore.listForUser((req as any).user.id) });
+});
+app.post('/api/connections', requireAccount, rateLimit(aiRateLimiter, 'connections'), async (req: Request, res: Response) => {
+  let parsed;
+  try { parsed = parsePlatformUrl(req.body?.url); }
+  catch (e: any) { return res.status(400).json({ error: e?.message || 'Invalid URL', live: false }); }
+  try {
+    const c = await connectionStore.add((req as any).user.id, parsed);
+    res.status(201).json({ connection: c });
+  } catch (e: any) {
+    res.status(e?.code === 'DUPLICATE_HOST' || e?.code === 'LIMIT' ? 409 : 500).json({ error: e?.message || 'Could not add connection', live: false });
+  }
+});
+app.delete('/api/connections/:id', requireAccount, async (req: Request, res: Response) => {
+  const ok = await connectionStore.remove((req as any).user.id, req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Connection not found', live: false });
+  res.json({ deleted: true });
+});
+// The extension fetches this after the user signs in so it can request host
+// permissions + inject the floating bar on the user's own connected sites.
+app.get('/api/extension-config', requireAccount, (req: Request, res: Response) => {
+  const connections = connectionStore.listForUser((req as any).user.id);
+  const patterns = connectionStore.patternsForUser((req as any).user.id);
+  res.json({ connections, matchPatterns: patterns });
 });
 
 // 0. Engine Health — live probe against the real Gemini engine

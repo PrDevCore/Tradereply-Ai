@@ -1,5 +1,8 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Header } from './components/Header.tsx';
+import { AuthForm } from './components/AuthForm.tsx';
+import { ConnectionsView } from './components/ConnectionsView.tsx';
+import { authApi, getSessionUser, clearSession } from './utils/authClient.ts';
 
 // Each tab is code-split, so the landing view no longer ships the whole app in one
 // ~590 kB chunk, and a slow tab download shows TabLoading instead of a blank screen.
@@ -24,6 +27,9 @@ const BusinessProfileView = lazy(() =>
 const ExportExtensionModal = lazy(() =>
   import('./components/ExportExtensionModal.tsx').then((m) => ({ default: m.ExportExtensionModal })),
 );
+const AboutView = lazy(() =>
+  import('./components/AboutView.tsx').then((m) => ({ default: m.AboutView })),
+);
 
 function TabLoading() {
   return (
@@ -42,8 +48,15 @@ import { BusinessProfile, Lead, Template, ToneSettings } from './types.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    'workspace' | 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export'
-  >('workspace');
+    'workspace' | 'simulator' | 'popup' | 'templates' | 'tones' | 'profile' | 'export' | 'account' | 'about'
+  >('account');
+  const [sessionUser, setSessionUser] = useState<any>(() => getSessionUser());
+  useEffect(() => {
+    authApi.me().then((r) => {
+      if (r.ok && r.data?.user) setSessionUser(r.data.user);
+      else if (!getSessionUser()) setSessionUser(null);
+    });
+  }, []);
 
   // Leads state
   const [leads, setLeads] = useState<Lead[]>(() => {
@@ -187,6 +200,13 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 pb-12">
         <Suspense fallback={<TabLoading />}>
+          {activeTab === 'account' && (
+            sessionUser ? (
+              <ConnectionsView user={sessionUser} onLogout={() => { clearSession(); setSessionUser(null); }} />
+            ) : (
+              <AuthForm onDone={(u) => { setSessionUser(u); }} />
+            )
+          )}
           {activeTab === 'workspace' && (
             <ResponseWorkspace businessProfile={businessProfile} toneSettings={toneSettings} />
           )}
@@ -241,13 +261,14 @@ export default function App() {
         )}
 
         {activeTab === 'export' && <ExportExtensionModal />}
+          {activeTab === 'about' && <AboutView />}
         </Suspense>
       </main>
 
       {/* Persistent Footer with quick stats */}
       <footer className="bg-slate-950 border-t border-slate-900 py-4 px-6 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-slate-400">TradeReply AI Engine</span>
+          <span className="font-semibold text-slate-400">PR Reply AI Engine by PR Dev Core Tech</span>
           <span>&bull;</span>
           <span className="flex items-center gap-1.5">
             {engineStatus === null ? (
@@ -273,6 +294,10 @@ export default function App() {
           </span>
           <span>&bull;</span>
           <span>Manifest V3 Extension Ready</span>
+          <span>&bull;</span>
+          <button onClick={() => setActiveTab('about')} className="hover:text-sky-300 transition-colors">
+            By <strong className="text-slate-300">PR DEV CORE TECH</strong> — The product studio
+          </button>
         </div>
         <div className="flex items-center gap-4">
           <span>Active Trading Name: <strong className="text-slate-300">{businessProfile.companyName}</strong></span>
@@ -282,3 +307,4 @@ export default function App() {
     </div>
   );
 }
+

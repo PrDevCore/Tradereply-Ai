@@ -36,7 +36,7 @@ export interface ChannelDriver {
   /** Fetch leads that have arrived since `since`. Return [] when not implemented. */
   fetchLeads(since: string): Promise<IncomingLead[]>;
   /**
-   * Send a message to the customer. NOT IMPLEMENTED for any driver: TradeReply AI
+   * Send a message to the customer. NOT IMPLEMENTED for any driver: PR Reply AI
    * drafts replies and a human sends them, so no credential can ever be used to
    * send unsolicited messages on a user's behalf.
    */
@@ -64,3 +64,4 @@ export function driverFor(platform: string): ChannelDriver | undefined {
 export function isLiveChannel(platform: string): boolean {
   return driverFor(platform)?.live === true;
 }
+

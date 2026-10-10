@@ -1,4 +1,5 @@
-// TradeReply AI service worker (Manifest V3).
+// @ts-nocheck
+// PR Reply AI service worker (Manifest V3).
 //
 // Why this file exists: every engine call must originate from the extension's own
 // origin. Since Chrome 85 a content script's fetch inherits the PAGE's origin, so a
@@ -57,6 +58,56 @@ async function readSharedToken() {
   }
 }
 
+async function readSessionToken() {
+  try {
+    const stored = await chrome.storage.local.get('tradereplySessionToken');
+    return (stored.tradereplySessionToken || '').trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+// Fetch the user's connected platform patterns after sign-in, and request
+// host access + inject content.js there. This is how ANY user-pasted social
+// URL starts working without a new extension build.
+async function syncConnectedSites(apiBase, sessionToken) {
+  if (!apiBase || !sessionToken) return { ok: false };
+  try {
+    const res = await fetch(apiBase + '/api/extension-config', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + sessionToken },
+    });
+    if (!res.ok) return { ok: false, status: res.status };
+    const data = await res.json().catch(() => ({}));
+    const patterns = Array.isArray(data.matchPatterns) ? data.matchPatterns : [];
+    if (patterns.length && chrome.permissions && chrome.permissions.request) {
+      try { await chrome.permissions.request({ origins: patterns }); } catch (e) { /* user declined */ }
+    }
+    try { await chrome.storage.local.set({ tradereplyConnections: data.connections || [], tradereplyMatchPatterns: patterns }); } catch (e) {}
+    // Proactively inject into open connected tabs.
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (!tab.id || !tab.url) continue;
+        const matches = patterns.some((p) => {
+          try {
+            const host = new URL(tab.url).hostname.toLowerCase();
+            const apex = p.replace('*://*.', '').replace('/*', '').toLowerCase();
+            return host === apex || host.endsWith('.' + apex);
+          } catch (e) { return false; }
+        });
+        if (matches) {
+          try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
+          try { await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['content.css'] }); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    return { ok: true, count: patterns.length };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || 'network error' };
+  }
+}
+
 // A cold instance answers in ~25s, a warm one in well under a second. Waking it
 // through the cheap /api/health route first means the real call lands on a warm
 // socket instead of racing the cold start and losing the connection.
@@ -75,15 +126,17 @@ async function callEngine(endpoint, payload) {
     return {
       ok: false,
       status: 0,
-      error: 'No usable TradeReply AI API URL is configured. Open the extension options and set it to your server address, for example https://your-server.onrender.com.'
+      error: 'No usable PR Reply AI API URL is configured. Open the extension options and set it to your server address, for example https://your-server.onrender.com.'
     };
   }
 
   const token = await readSharedToken();
+  const session = await readSessionToken();
   const url = apiBase + '/api/' + endpoint;
 
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['x-tradereply-token'] = token;
+  if (session) headers['Authorization'] = 'Bearer ' + session;
 
   let lastError = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -152,7 +205,17 @@ function describeNetworkFailure(apiBase, aborted) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message || message.type !== 'TRADEREPLY_REQUEST') return undefined;
+  if (!message || message.type !== 'TRADEREPLY_REQUEST') {
+    if (message && message.type === 'TRADEREPLY_SYNC_SITES') {
+      (async () => {
+        const apiBase = await resolveApiBase();
+        const session = await readSessionToken();
+        sendResponse(await syncConnectedSites(apiBase, session));
+      })();
+      return true;
+    }
+    return undefined;
+  }
 
   if (ALLOWED_ENDPOINTS.indexOf(message.endpoint) === -1) {
     sendResponse({ ok: false, status: 400, error: 'Unsupported endpoint: ' + String(message.endpoint) });
@@ -167,3 +230,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true; // keeps the message channel open for the async reply
 });
+

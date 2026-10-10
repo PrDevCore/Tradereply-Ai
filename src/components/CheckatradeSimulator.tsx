@@ -241,7 +241,7 @@ export const CheckatradeSimulator: React.FC<CheckatradeSimulatorProps> = ({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 bg-sky-950/80 border border-sky-500/30 px-2.5 py-1 rounded-md text-[11px] font-semibold text-sky-300">
               <Zap className="w-3.5 h-3.5 text-sky-400 fill-sky-400" />
-              <span>TradeReply AI Extension: Active</span>
+              <span>PR Reply AI Extension: Active</span>
             </div>
           </div>
         </div>
@@ -556,7 +556,7 @@ export const CheckatradeSimulator: React.FC<CheckatradeSimulatorProps> = ({
                             <Zap className="w-3.5 h-3.5 fill-white" />
                           </div>
                           <div>
-                            <span className="font-bold text-xs text-white">TradeReply AI</span>
+                            <span className="font-bold text-xs text-white">PR Reply AI</span>
                             <span className="text-[10px] text-sky-400 font-mono ml-2">
                               v1.2 Injected into Checkatrade Chat
                             </span>
@@ -731,7 +731,7 @@ export const CheckatradeSimulator: React.FC<CheckatradeSimulatorProps> = ({
                           <textarea
                             value={draftText}
                             onChange={(e) => setDraftText(e.target.value)}
-                            placeholder="Click 'Generate Auto-Reply' above or select a template to have TradeReply AI draft a personalized response..."
+                            placeholder="Click 'Generate Auto-Reply' above or select a template to have PR Reply AI draft a personalized response..."
                             rows={6}
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-sans leading-relaxed resize-y"
                           />
@@ -868,7 +868,7 @@ export const CheckatradeSimulator: React.FC<CheckatradeSimulatorProps> = ({
             </h3>
             <p className="text-xs text-slate-400 mb-4">
               Paste any real customer message you received on Checkatrade, MyBuilder, or Bark to test
-              how TradeReply AI analyzes and drafts the response.
+              how PR Reply AI analyzes and drafts the response.
             </p>
 
             <div className="space-y-3 text-xs">
@@ -973,3 +973,4 @@ export const CheckatradeSimulator: React.FC<CheckatradeSimulatorProps> = ({
     </div>
   );
 };
+

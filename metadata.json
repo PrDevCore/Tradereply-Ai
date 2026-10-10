@@ -1,6 +1,1 @@
-{
-  "name": "TradeReply AI - Checkatrade Auto-Reply Extension",
-  "description": "AI-powered lead message analysis and personalized auto-reply browser extension for Checkatrade, MyBuilder, and trade platforms with tone tuning and customizable template library.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
+{"name":"PR Reply AI - Universal Auto-Reply by PR Dev Core Tech","description":"PR Reply AI by PR Dev Core Tech - AI auto-reply assistant for ANY social platform. Create an account, connect platform URLs, and draft replies everywhere.","requestFramePermissions":[],"majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}

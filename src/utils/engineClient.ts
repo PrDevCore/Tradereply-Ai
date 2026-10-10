@@ -1,5 +1,5 @@
 /**
- * Single client for the local TradeReply AI API.
+ * Single client for the local PR Reply AI API.
  *
  * Every view used to hand-roll the same fetch + "which field holds the error" dance,
  * which is how a failure ends up silently swallowed. This normalises both success and
@@ -17,6 +17,10 @@ export interface EngineResult<T> {
 
 const CLIENT_TOKEN =
   ((import.meta as any).env?.VITE_TRADEREPLY_API_TOKEN as string | undefined)?.trim() || '';
+
+function sessionToken(): string {
+  try { return localStorage.getItem('tradereply_session_token') || ''; } catch { return ''; }
+}
 
 function describeFailure(payload: any, status: number): string {
   if (payload && typeof payload === 'object') {
@@ -41,6 +45,8 @@ export async function requestEngine<T>(
 ): Promise<EngineResult<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (CLIENT_TOKEN) headers['x-tradereply-token'] = CLIENT_TOKEN;
+  const session = sessionToken();
+  if (session) headers['Authorization'] = `Bearer ${session}`;
 
   try {
     const res = await fetch(path, {
@@ -60,7 +66,8 @@ export async function requestEngine<T>(
       ok: false,
       status: 0,
       data: null,
-      error: 'Could not reach the TradeReply AI engine: ' + (err?.message || 'network error'),
+      error: 'Could not reach the PR Reply AI engine: ' + (err?.message || 'network error'),
     };
   }
 }
+

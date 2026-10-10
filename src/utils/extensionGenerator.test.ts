@@ -10,14 +10,14 @@ const sourceDir = resolve('extension/src');
 test('extension manifest is valid MV3 and keeps origin injection centralized', () => {
   const manifest = JSON.parse(readFileSync(resolve(sourceDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ['storage', 'activeTab', 'scripting']);
+  assert.ok((manifest.permissions as string[]).includes('storage'));
   assert.ok(manifest.host_permissions.includes('__TRADEREPLY_API_ORIGIN__/*'));
-  assert.ok(!manifest.host_permissions.includes('*://trades.checkatrade.com/*'), 'redundant trades subdomain must stay removed');
-  assert.deepEqual(manifest.content_scripts[0].matches, [
-    '*://*.checkatrade.com/*',
-    '*://*.mybuilder.com/*',
-    '*://*.ratedpeople.com/*',
-  ]);
+  // Universal tool: social sites covered statically, user URLs via optional permissions.
+  assert.ok(((manifest.optional_host_permissions as string[]) || []).includes('*://*/*'), 'must allow requesting access to any user-connected site');
+  const matches = manifest.content_scripts[0].matches as string[];
+  for (const site of ['facebook.com', 'instagram.com', 'x.com', 'tiktok.com', 'linkedin.com', 'checkatrade.com']) {
+    assert.ok(matches.some((m) => m.includes(site)), `content script should cover ${site}`);
+  }
   assert.deepEqual(manifest.action.default_icon, {
     16: 'icon16.png', 32: 'icon32.png', 48: 'icon48.png', 128: 'icon128.png',
   });

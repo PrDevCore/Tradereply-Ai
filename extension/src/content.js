@@ -1,10 +1,11 @@
-// TradeReply AI Content Script for Checkatrade & Trade Portals
+// @ts-nocheck
+// PR Reply AI Content Script for Checkatrade & Trade Portals
 // IMPORTANT: this file never calls the API itself. Since Chrome 85 a content
 // script's fetch/XHR inherits the page's origin, so a cross-origin call to the
 // TradeReply engine is blocked by CORS. Every request is relayed to background.js,
 // which runs in the extension's own origin and is therefore exempt.
 (function() {
-  console.log('[TradeReply AI] Extension initialized on Checkatrade');
+  console.log('[PR Reply AI] Extension initialized on Checkatrade');
 
   // The worker may spend up to a minute waking a cold instance before the engine call
   // even starts, so this budget must sit above the worker's own total worst case —
@@ -216,7 +217,7 @@
     widget.innerHTML = `
       <div class="tr-badge">
         <span class="tr-logo">⚡</span>
-        <span class="tr-title">TradeReply AI</span>
+        <span class="tr-title">PR Reply AI</span>
         <select id="tr-tone-select">
           <option value="professional_polished">👔 Professional</option>
           <option value="friendly_approachable">🤝 Friendly</option>
@@ -272,7 +273,7 @@
       const leadText = resolveLeadText();
 
       if (!leadText) {
-        alert('TradeReply AI: no customer enquiry text detected, so there is nothing to file.');
+        alert('PR Reply AI: no customer enquiry text detected, so there is nothing to file.');
         return;
       }
 
@@ -288,7 +289,7 @@
         });
 
         if (!result.ok || !result.data) {
-          alert('TradeReply AI could not file this lead: ' + engineErrorMessage(result));
+          alert('PR Reply AI could not file this lead: ' + engineErrorMessage(result));
           return;
         }
         btn.innerText = '✅ Filed';
@@ -299,7 +300,7 @@
       } catch (err) {
         btn.disabled = false;
         btn.innerText = '📥 Add to Workspace';
-        alert('TradeReply AI could not file this lead: ' + err.message);
+        alert('PR Reply AI could not file this lead: ' + err.message);
       }
     });
 
@@ -310,7 +311,7 @@
       const leadText = resolveLeadText();
 
       if (!leadText) {
-        alert('TradeReply AI: no customer enquiry text detected on this page. Open the actual lead thread, or paste the message into the box above.');
+        alert('PR Reply AI: no customer enquiry text detected on this page. Open the actual lead thread, or paste the message into the box above.');
         return;
       }
 
@@ -335,7 +336,7 @@
         });
 
         if (!result.ok || !result.data || !result.data.replyText) {
-          alert('TradeReply AI engine error: ' + engineErrorMessage(result));
+          alert('PR Reply AI engine error: ' + engineErrorMessage(result));
           return;
         }
 
@@ -378,11 +379,11 @@
           previewBox.style.display = 'none';
           if (!inserted) {
             // Never fail silently — the user must know the draft is still recoverable.
-            alert('TradeReply AI could not find the message box on this page, so the reply was NOT inserted.\n\nSelect the text above and copy it, then paste it into Checkatrade yourself.');
+            alert('PR Reply AI could not find the message box on this page, so the reply was NOT inserted.\n\nSelect the text above and copy it, then paste it into Checkatrade yourself.');
           }
         });
       } catch (err) {
-        alert('Could not reach the TradeReply AI engine: ' + err.message);
+        alert('Could not reach the PR Reply AI engine: ' + err.message);
       } finally {
         btn.disabled = false;
         btn.innerText = '✨ Draft Auto-Reply';

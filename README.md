@@ -1,4 +1,19 @@
 
+# TradeReply AI - Universal Auto-Reply
+
+A general auto-reply tool for **all social platforms** (Facebook, Instagram, X, TikTok, LinkedIn, Checkatrade, MyBuilder...). How it works:
+
+1. **Create an account** on the Account tab (email + password, stored as scrypt hashes server-side).
+2. **Paste the URL** of any social page/inbox you want replies on - the server detects the platform, derives match patterns, and stores it as your connection.
+3. **Install the extension**, sign in inside it, and it requests access + injects the Draft Auto-Reply bar on your connected sites automatically.
+
+| Endpoint | Purpose |
+| --- | --- |
+| POST /api/auth/signup \| /api/auth/login \| /api/auth/me | Account lifecycle (30-day 	r_... session tokens) |
+| GET \| POST /api/connections | List / add a platform URL connection (per user) |
+| DELETE /api/connections/:id | Remove a connection |
+| GET /api/extension-config | Extension sync: connections + MV3 match patterns |
+
 ## Run locally
 
 **Prerequisites:** Node.js 20.19+ (the test script relies on `node:test`)

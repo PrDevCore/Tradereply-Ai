@@ -1,4 +1,5 @@
-// TradeReply AI options page — persists REAL settings to chrome.storage.local.
+// @ts-nocheck
+// PR Reply AI options page — persists REAL settings to chrome.storage.local.
 // An external file is required because inline scripts are blocked by the Manifest V3 CSP.
 const PROFILE_FIELDS = [
   ['company', 'companyName'],

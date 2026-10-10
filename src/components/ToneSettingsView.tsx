@@ -114,7 +114,7 @@ export const ToneSettingsView: React.FC<ToneSettingsViewProps> = ({
             <span>Tone Settings & AI Persona</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Tune how TradeReply AI communicates with homeowners on Checkatrade to match your exact
+            Tune how PR Reply AI communicates with homeowners on Checkatrade to match your exact
             brand voice.
           </p>
         </div>
@@ -406,3 +406,4 @@ export const ToneSettingsView: React.FC<ToneSettingsViewProps> = ({
     </div>
   );
 };
+

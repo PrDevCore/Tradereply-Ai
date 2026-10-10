@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "TradeReply AI - Checkatrade Auto-Reply",
-  "version": "1.2.0",
-  "description": "Instant lead analysis and personalized, professional auto-reply generator for Checkatrade, MyBuilder, and trade directories.",
+  "name": "PR Reply AI - Universal Auto-Reply",
+  "version": "2.0.0",
+  "description": "Sign in to PR Reply AI, connect any social platform URL (Facebook, Instagram, X, TikTok, LinkedIn, Checkatrade…), and get instant AI-drafted replies on that site.",
   "icons": {
     "16": "icon16.png",
     "32": "icon32.png",
@@ -13,17 +13,18 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
   ],
   "host_permissions": [
-    "*://*.checkatrade.com/*",
-    "*://*.mybuilder.com/*",
-    "*://*.ratedpeople.com/*",
     "__TRADEREPLY_API_ORIGIN__/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "TradeReply AI Assistant",
+    "default_title": "PR Reply AI Assistant",
     "default_icon": {
       "16": "icon16.png",
       "32": "icon32.png",
@@ -38,6 +39,12 @@
   "content_scripts": [
     {
       "matches": [
+        "*://*.facebook.com/*",
+        "*://*.instagram.com/*",
+        "*://*.x.com/*",
+        "*://*.twitter.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.linkedin.com/*",
         "*://*.checkatrade.com/*",
         "*://*.mybuilder.com/*",
         "*://*.ratedpeople.com/*"

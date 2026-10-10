@@ -95,7 +95,7 @@ export const ExtensionPopupView: React.FC<ExtensionPopupViewProps> = ({
           <span>Chrome Extension Popup Preview</span>
         </h2>
         <p className="text-xs text-slate-400 mt-1 max-w-lg mx-auto">
-          This simulates clicking the TradeReply AI icon in the Google Chrome browser toolbar.
+          This simulates clicking the PR Reply AI icon in the Google Chrome browser toolbar.
           Tradespeople can draft fast responses on any webpage or scratchpad.
         </p>
       </div>
@@ -110,7 +110,7 @@ export const ExtensionPopupView: React.FC<ExtensionPopupViewProps> = ({
                 <Zap className="w-4 h-4 fill-white" />
               </div>
               <div>
-                <h3 className="font-bold text-xs text-white leading-tight">TradeReply AI</h3>
+                <h3 className="font-bold text-xs text-white leading-tight">PR Reply AI</h3>
                 <span className="text-[10px] text-sky-400">Checkatrade Companion</span>
               </div>
             </div>
@@ -265,7 +265,7 @@ export const ExtensionPopupView: React.FC<ExtensionPopupViewProps> = ({
               <span>How the Extension Works in Real Life</span>
             </h4>
             <p className="leading-relaxed text-slate-400">
-              When installed in Google Chrome, TradeReply AI runs quietly in the background. As soon
+              When installed in Google Chrome, PR Reply AI runs quietly in the background. As soon
               as you navigate to Checkatrade or MyBuilder, it detects the customer enquiry and
               automatically generates a personalized draft tailored to your pricing and tone.
             </p>
@@ -296,3 +296,4 @@ export const ExtensionPopupView: React.FC<ExtensionPopupViewProps> = ({
     </div>
   );
 };
+
