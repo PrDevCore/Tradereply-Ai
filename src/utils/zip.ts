@@ -24,7 +24,7 @@ function push32(target: number[], value: number): void {
 }
 
 /** Create a standard uncompressed ZIP archive without adding a runtime dependency. */
-export function createExtensionZip(files: Readonly<Record<string, string>>): Uint8Array<ArrayBuffer> {
+export function createExtensionZip(files: Readonly<Record<string, string | Uint8Array>>): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];
@@ -32,7 +32,7 @@ export function createExtensionZip(files: Readonly<Record<string, string>>): Uin
 
   for (const [fileName, content] of Object.entries(files)) {
     const name = encoder.encode(fileName);
-    const data = encoder.encode(content);
+    const data = typeof content === 'string' ? encoder.encode(content) : content;
     const checksum = crc32(data);
     const local: number[] = [];
     push32(local, 0x04034b50);

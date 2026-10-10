@@ -33,7 +33,7 @@ npm run build:extension -- https://your-api.example.com
 
 ## Live engine (no simulations)
 
-All four AI endpoints call the Google Gemini API directly
+All AI endpoints call the Google Gemini API directly
 (`gemini-3.8-flash` by default, override with `GEMINI_MODEL`):
 
 | Endpoint | Purpose |
@@ -42,6 +42,7 @@ All four AI endpoints call the Google Gemini API directly
 | `POST /api/generate-reply` | Personalized auto-reply draft |
 | `POST /api/generate-template` | Reusable message template |
 | `POST /api/rewrite-draft` | Rewrite / polish an existing draft |
+| `POST /api/leads` (`/api/file-lead` alias for the extension) | File a lead into the workspace queue |
 | `GET /api/health` | Live liveness probe of the Gemini engine |
 
 If neither `GEMINI_API_KEY` nor a usable local Ollama model is configured, these
@@ -145,7 +146,7 @@ The exported extension keeps its network traffic in **one** place:
   blocked by CORS, so a direct call from an injected script cannot work. Extension
   pages and workers are exempt, and the worker relays the result back to the page.
 - The page context may only name an endpoint (`generate-reply`, `analyze-lead`,
-  `generate-template`, `rewrite-draft`), never a URL, so a compromised page cannot use
+  `generate-template`, `rewrite-draft`, `file-lead`), never a URL, so a compromised page cannot use
   the worker as an open proxy.
 - Reply text is inserted with `textContent`/text nodes, never `innerHTML`: it is
   derived from page content plus model output and must not be parsed as markup.

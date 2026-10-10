@@ -25,6 +25,15 @@ export const EXTENSION_FILE_NAMES: Array<keyof ExtensionFiles> = [
   'popup.html', 'popup.js', 'options.html', 'options.js', 'README.md',
 ];
 
+export const EXTENSION_ICON_FILES = ['icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'] as const;
+
+export const EXTENSION_ICON_URLS: Record<(typeof EXTENSION_ICON_FILES)[number], string> = {
+  'icon16.png': new URL('../../extension/src/icon16.png', import.meta.url).href,
+  'icon32.png': new URL('../../extension/src/icon32.png', import.meta.url).href,
+  'icon48.png': new URL('../../extension/src/icon48.png', import.meta.url).href,
+  'icon128.png': new URL('../../extension/src/icon128.png', import.meta.url).href,
+};
+
 const API_ORIGIN_PLACEHOLDER = '__TRADEREPLY_API_ORIGIN__';
 
 function normaliseApiOrigin(apiBaseUrl: string): string {
@@ -36,6 +45,11 @@ function normaliseApiOrigin(apiBaseUrl: string): string {
   }
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error('API origin must use http or https.');
+  }
+  const host = url.hostname.toLowerCase();
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  if (url.protocol !== 'https:' && !isLocal) {
+    throw new Error('Non-local API origins must use HTTPS.');
   }
   if (url.search || url.hash || (url.pathname && url.pathname !== '/')) {
     throw new Error('API origin must not include a path, query string, or fragment.');

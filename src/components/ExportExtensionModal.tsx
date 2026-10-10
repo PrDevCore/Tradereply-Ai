@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { generateExtensionFiles, ExtensionFiles } from '../utils/extensionGenerator.ts';
+import { generateExtensionFiles, EXTENSION_ICON_FILES, EXTENSION_ICON_URLS, ExtensionFiles } from '../utils/extensionGenerator.ts';
 import { createExtensionZip } from '../utils/zip.ts';
 import {
   Download,
@@ -26,7 +26,8 @@ export const ExportExtensionModal: React.FC = () => {
 
   const handleDownloadFile = (fileName: keyof ExtensionFiles) => {
     const content = files[fileName];
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const mime = fileName.endsWith('.json') ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
+    const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -35,14 +36,31 @@ export const ExportExtensionModal: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadAll = () => {
-    const blob = new Blob([createExtensionZip({ ...files }).buffer], { type: 'application/zip' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'tradereply-ai-extension.zip';
-    link.click();
-    URL.revokeObjectURL(url);
+  const [busy, setBusy] = useState(false);
+  const [zipError, setZipError] = useState('');
+
+  const handleDownloadAll = async () => {
+    setBusy(true);
+    setZipError('');
+    try {
+      const icons: Record<string, Uint8Array> = {};
+      for (const name of EXTENSION_ICON_FILES) {
+        const res = await fetch(EXTENSION_ICON_URLS[name]);
+        if (!res.ok) throw new Error('Could not load ' + name);
+        icons[name] = new Uint8Array(await res.arrayBuffer());
+      }
+      const blob = new Blob([createExtensionZip({ ...files, ...icons }).buffer as ArrayBuffer], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'tradereply-ai-extension.zip';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setZipError(e instanceof Error ? e.message : 'Could not build the ZIP.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -62,12 +80,14 @@ export const ExportExtensionModal: React.FC = () => {
 
         <button
           onClick={handleDownloadAll}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg shadow-lg shadow-emerald-700/20 transition"
+          disabled={busy}
+          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs px-4 py-2.5 rounded-lg shadow-lg shadow-emerald-700/20 transition"
         >
           <FolderArchive className="w-4 h-4" />
-          <span>Download Extension ZIP</span>
+          <span>{busy ? 'Building ZIP…' : 'Download Extension ZIP'}</span>
         </button>
       </div>
+      {zipError ? <p className="text-xs text-red-400 mb-4">{zipError}</p> : null}
 
       {/* Guide Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">

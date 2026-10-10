@@ -12,6 +12,18 @@ test('extension manifest is valid MV3 and keeps origin injection centralized', (
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ['storage', 'activeTab', 'scripting']);
   assert.ok(manifest.host_permissions.includes('__TRADEREPLY_API_ORIGIN__/*'));
+  assert.ok(!manifest.host_permissions.includes('*://trades.checkatrade.com/*'), 'redundant trades subdomain must stay removed');
+  assert.deepEqual(manifest.content_scripts[0].matches, [
+    '*://*.checkatrade.com/*',
+    '*://*.mybuilder.com/*',
+    '*://*.ratedpeople.com/*',
+  ]);
+  assert.deepEqual(manifest.action.default_icon, {
+    16: 'icon16.png', 32: 'icon32.png', 48: 'icon48.png', 128: 'icon128.png',
+  });
+  for (const size of [16, 32, 48, 128]) {
+    assert.ok(readFileSync(resolve(sourceDir, `icon${size}.png`)).length > 0, `icon${size}.png must exist`);
+  }
   assert.equal(manifest.background.service_worker, 'background.js');
   assert.equal(manifest.content_scripts[0].js[0], 'content.js');
 });
@@ -90,4 +102,22 @@ test('ZIP writer emits local, central, and end records for every file', () => {
   assert.equal(view.getUint32(eocdOffset, true), 0x06054b50);
   assert.equal(view.getUint16(eocdOffset + 8, true), Object.keys(files).length);
   assert.equal(view.getUint16(eocdOffset + 10, true), Object.keys(files).length);
+});
+
+test('ZIP writer preserves binary icon bytes', () => {
+  const iconBytes = readFileSync(resolve(sourceDir, 'icon16.png'));
+  const zip = createExtensionZip({ 'icon16.png': iconBytes, 'manifest.json': '{}' });
+  const text = Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength).toString('latin1');
+  assert.ok(text.includes('icon16.png'), 'icon filename must be listed');
+  assert.ok(text.includes('manifest.json'), 'text file must be listed');
+  const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+  assert.equal(view.getUint16(zip.length - 22 + 8, true), 2);
+});
+
+test('web origin normaliser requires HTTPS for non-local hosts', () => {
+  // extensionGenerator.ts uses Vite-only "?raw" imports, so it cannot be loaded
+  // under tsx here — assert on the shipped source instead.
+  const source = readFileSync(resolve('src/utils/extensionGenerator.ts'), 'utf8');
+  assert.ok(source.includes('Non-local API origins must use HTTPS.'));
+  assert.ok(source.includes("host === '[::1]'"));
 });

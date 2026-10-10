@@ -25,7 +25,9 @@ function isUsableApiBase(value) {
   if (!value || value.indexOf('__TRADEREPLY_API_ORIGIN__') !== -1) return false;
   try {
     const parsed = new URL(value);
-    return parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    const host = parsed.hostname.toLowerCase();
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && isLocalHost);
   } catch (e) {
     return false;
   }

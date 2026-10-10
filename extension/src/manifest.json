@@ -17,14 +17,19 @@
   ],
   "host_permissions": [
     "*://*.checkatrade.com/*",
-    "*://trades.checkatrade.com/*",
     "*://*.mybuilder.com/*",
     "*://*.ratedpeople.com/*",
     "__TRADEREPLY_API_ORIGIN__/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "TradeReply AI Assistant"
+    "default_title": "TradeReply AI Assistant",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js"
@@ -34,8 +39,8 @@
     {
       "matches": [
         "*://*.checkatrade.com/*",
-        "*://trades.checkatrade.com/*",
-        "*://*.mybuilder.com/*"
+        "*://*.mybuilder.com/*",
+        "*://*.ratedpeople.com/*"
       ],
       "js": [
         "content.js"
