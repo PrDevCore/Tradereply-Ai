@@ -1,14 +1,20 @@
 import React from 'react';
-import { ArrowUpRight, BarChart3, Building2, Sparkles, CalendarClock, Layers } from 'lucide-react';
+import { PrLogo } from './PrLogo.tsx';
+import { ArrowUpRight, BarChart3, Building2, Sparkles, CalendarClock } from 'lucide-react';
 
 const card = 'bg-slate-900 border border-slate-800 rounded-xl p-5';
 
 export const AboutView: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <p className="text-[11px] font-bold tracking-[0.2em] text-sky-400 uppercase">About the app and the creators</p>
-      <h2 className="text-3xl font-black text-white mt-2">PR DEV CORE TECH</h2>
-      <p className="text-sm text-slate-400 mt-1">The product studio</p>
+      <div className="flex items-center gap-4">
+        <PrLogo size={56} />
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.2em] text-sky-400 uppercase">About the app and the creators</p>
+          <h2 className="text-3xl font-black text-white mt-1">PR DEV CORE TECH</h2>
+          <p className="text-sm text-slate-400 mt-1">The product studio — makers of PR Reply AI</p>
+        </div>
+      </div>
       <p className="text-sm text-slate-300 mt-4 max-w-2xl leading-relaxed">
         Software for a more connected way to work. A growing collection of focused tools from
         PR DEV CORE TECH. We build products that make complex digital work feel considered and manageable.
@@ -73,9 +79,7 @@ export const AboutView: React.FC = () => {
 
       <div className={`${card} mt-4 flex flex-col sm:flex-row sm:items-center gap-4`}>
         <div className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center">
-              <img src="/apple-touch-icon.png" alt="PR Dev Core Tech logo" className="w-10 h-10 object-contain" />
-            </span>
+          <PrLogo size={40} />
           <div>
             <p className="text-sm font-extrabold text-white flex items-center gap-1.5">
               <CalendarClock className="w-4 h-4 text-sky-400" /> PR Reply AI

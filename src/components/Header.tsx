@@ -1,4 +1,5 @@
 import React from 'react';
+import { PrLogo } from './PrLogo.tsx';
 import {
   Sparkles,
   MessageSquare,
@@ -27,9 +28,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, leadsCo
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-lg shadow-sky-500/20">
-              <img src="/apple-touch-icon.png" alt="PR Dev Core Tech logo" className="w-10 h-10 object-contain" />
-            </div>
+            <PrLogo size={40} />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-lg tracking-tight text-white">
@@ -89,11 +88,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, leadsCo
               <MessageSquare className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Checkatrade Simulator</span>
               <span className="md:hidden">Simulator</span>
-              {leadsCount > 0 && (
-                <span className="ml-1 bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full text-[10px]">
-                  {leadsCount}
-                </span>
-              )}
             </button>
 
             <button

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="pr-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#0369a1"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="pr-bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a7f3d0"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#pr-bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="3"/>
+  <text x="64" y="78" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="52" fill="#ffffff" letter-spacing="1">PR</text>
+  <path d="M70 88 L60 102 L66 102 L62 114 L78 96 L71 96 L75 88 Z" fill="url(#pr-bolt)" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="64" y="30" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="10" fill="#bae6fd" letter-spacing="2.5">REPLY AI</text>
+  <text x="64" y="112" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="7.5" fill="#a7f3d0" letter-spacing="1.5">PR DEV CORE TECH</text>
+</svg>
